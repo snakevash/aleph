@@ -1,6 +1,9 @@
 <img src="/docs/aleph.png" align="left" height="210px" hspace="5px"/>
 
-Aleph exposes data from the network as a [Manifold](https://github.com/ztellman/manifold) stream, which can easily be transformed into a `java.io.InputStream`, [core.async](https://github.com/clojure/core.async) channel, Clojure sequence, or [many other byte representations](https://github.com/ztellman/byte-streams).  It exposes simple default wrappers for HTTP, TCP, and UDP, but allows access to full performance and flexibility of the underlying [Netty](https://github.com/netty/netty) library.
+Aleph是在网络上通过[Manifold](https://github.com/ztellman/manifold)来传输数据
+比使用`java.io.InputStream`,[core.async](https://github.com/clojure/core.async)通道,
+Clojure序列,后者[其他字节表示组件](https://github.com/ztellman/byte-streams)
+使用[Netty](https://github.com/netty/netty)来高性能、高可用的传输数据
 
 ```clj
 [aleph "0.4.3"]
@@ -8,7 +11,10 @@ Aleph exposes data from the network as a [Manifold](https://github.com/ztellman/
 
 ### HTTP
 
-Aleph follows the [Ring](https://github.com/ring-clojure) spec fully, and can be a drop-in replacement for any existing Ring-compliant server.  However, it also allows for the handler function to return a [Manifold deferred](https://github.com/ztellman/manifold) to represent an eventual response.  This feature may not play nicely with Ring middleware which modifies the response, but this can be easily fixed by reimplementing the middleware using Manifold's [let-flow](https://github.com/ztellman/manifold/blob/master/docs/deferred.md#let-flow) operator.
+Aleph遵循[Ring](https://github.com/ring-clojure)规范，可以替换所有Ring系列的服务器
+并且也支持基于[Manifold deferred](https://github.com/ztellman/manifold)事件返回，
+这个特性虽然不如Ring的中间件机制那样修改返回结果，但是能够很简单的用它来重新实现相同的机制，
+详细看[let-flow](https://github.com/ztellman/manifold/blob/master/docs/deferred.md#let-flow)
 
 ```clj
 (require '[aleph.http :as http])
@@ -21,9 +27,11 @@ Aleph follows the [Ring](https://github.com/ring-clojure) spec fully, and can be
 (http/start-server handler {:port 8080})
 ```
 
-The body of the response may also be a Manifold stream, where each message from the stream is sent as a chunk, allowing for precise control over streamed responses for [server-sent events](http://en.wikipedia.org/wiki/Server-sent_events) and other purposes.
+返回体可以是一个Manifold流,流是按照块来发送每次消息，使用[Server-sent_events](http://en.wikipedia.org/wiki/Server-sent_events)来更深度的控制
+返回或者其他目的
 
-For HTTP client requests, Aleph models itself after [clj-http](https://github.com/dakrone/clj-http), except that every request immediately returns a Manifold deferred representing the response.
+HTTP客户端请求，Aleph模型遵循[clj-http](https://github.com/dakrone/clj-http)，
+除了每次请求立即返回一个Manifold的deferred对象
 
 ```clj
 (require
@@ -41,11 +49,15 @@ For HTTP client requests, Aleph models itself after [clj-http](https://github.co
   prn)
 ```
 
-While Aleph attempts to mimic the clj-http API and capabilities fully, it does not currently support multipart requests, cookie stores, or proxy servers.  To learn more, [read the example code](http://aleph.io/examples/literate.html#aleph.examples.http).
+当Aleph完全模仿clj-http的api接口和能力时，它目前还不支持多部请求，cookie保存，代理服务
+[查看更多](http://aleph.io/examples/literate.html#aleph.examples.http)
 
 ### WebSockets
 
-On any HTTP request which has the proper `Upgrade` headers, you may call `(aleph.http/websocket-connection req)`, which returns a deferred which yields a **duplex stream**, which uses a single stream to represent bidirectional communication.  Messages from the client can be received via `take!`, and sent to the client via `put!`.  An echo WebSocket handler, then, would just consist of:
+对于HTTP请求，可以使用`(aleph.http/websocket-connection)`来添加一个`Upgrade`请求头，
+它返回一个延迟的 **双工数据流**，使用单个通道来回发送消息
+服务端可以使用`take!`来接收消息，使用`put!`来发送消息
+一个echo服务器如下
 
 ```clj
 (require '[manifold.stream :as s])
@@ -55,17 +67,22 @@ On any HTTP request which has the proper `Upgrade` headers, you may call `(aleph
     (s/connect s s))))
 ```
 
-This takes all messages from the client, and feeds them back into the duplex socket, returning them to the client.  WebSocket text messages will be emitted as strings, and binary messages as byte arrays.
+这将会获取所有来自客户端的消息，把它们放入双工socket，推送回客户端
+WebSocket文本消息被当成字符串，二进制消息被当成字节数组
 
-WebSocket clients can be created via `(aleph.http/websocket-client url)`, which returns a deferred which yields a duplex stream that can send and receive messages from the server.
+WebSocket客户端可以通过调用`(aleph.http/websocket-client url)`，
+它返回一个可以被用来读取和发送数据的双工流。
 
-To learn more, [read the example code](http://aleph.io/examples/literate.html#aleph.examples.websocket).
+[阅读范例代码](http://aleph.io/examples/literate.html#aleph.examples.websocket)
 
 ### TCP
 
-A TCP server is similar to an HTTP server, except that for each connection the handler takes two arguments: a duplex stream and a map containing information about the client.  The stream will emit byte-arrays, which can be coerced into other byte representations using the [byte-streams](https://github.com/ztellman/byte-streams) library.  The stream will accept any messages which can be coerced into a binary representation.
+TCP服务与HTTP类似，除了每个链接处理器将会有两个参数：一个双工流一个包含客户端对象信息的map
+流被当做字节数组，可以使用[byte-arrays](https://github.com/ztellman/byte-streams)来转换
+成其他格式
+流可以被用来接收任何二进制的数据
 
-An echo TCP server is very similar to the above WebSocket example:
+一个应答TCP服务
 
 ```clj
 (require '[aleph.tcp :as tcp])
@@ -76,13 +93,14 @@ An echo TCP server is very similar to the above WebSocket example:
 (tcp/start-server echo-handler {:port 10001})
 ```
 
-A TCP client can be created via `(aleph.tcp/client {:host "example.com", :port 10001})`, which returns a deferred which yields a duplex stream.
+TCP客户端可以通过调用`(aleph.tcp/client {:host "example.com", :port 10001})`来创建，
+返回一个双工数据流
 
-To learn more, [read the example code](http://aleph.io/examples/literate.html#aleph.examples.tcp).
+[阅读范例代码](http://aleph.io/examples/literate.html#aleph.examples.tcp)
 
 ### UDP
 
-A UDP socket can be generated using `(aleph.udp/socket {:port 10001, :broadcast? false})`.  If the `:port` is specified, it will yield a duplex socket which can be used to send and receive messages, which are structured as maps with the following data:
+UDP可以使用`(aleph.udp/socket {:port 10001 :broadcast? false})`
 
 ```clj
 {:host "example.com"
@@ -90,9 +108,9 @@ A UDP socket can be generated using `(aleph.udp/socket {:port 10001, :broadcast?
  :message ...}
 ```
 
-Where incoming packets will have a `:message` that is a byte-array, which can be coerced using `byte-streams`, and outgoing packets can be any data which can be coerced to a binary representation.  If no `:port` is specified, the socket can only be used to send messages.
+`:message`是一个字节数组,如果`:port`被指定，socket仅能够发送消息
 
-To learn more, [read the documentation](http://aleph.io/examples/literate.html).
+[阅读范例代码](http://aleph.io/examples/literate.html).
 
 ### license
 
